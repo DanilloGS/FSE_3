@@ -1,0 +1,32 @@
+menu "Configuração do Wifi"
+
+    config ESP_WIFI_SSID
+        string "WiFi SSID"
+        default "ssid"
+        help
+            Nome da rede Wifi.
+
+    config ESP_WIFI_PASSWORD
+        string "Senha do Wifi"
+        default "minha_senha"
+        help
+            Senha do WiFi (WPA or WPA2).
+
+    config ESP_MAXIMUM_RETRY
+        int "Número máximo de tentativas de conexão"
+        default 5
+        help
+            Configure o valor máximo de tentativas de conexão.
+endmenu
+
+menu "Configuração de energia"
+    config CONFIG_ESP_LOW_POWER_BOOL
+        choice 
+            bool "Selecione como será o fornecimento de energia da ESP"
+                default ENERGIA
+        config ENERGIA
+            bool "Habilitar o modo de maior desempenho"
+        config BATERIA
+            bool "Habilitar o modo economia de energia"
+        endchoice
+endmenu
