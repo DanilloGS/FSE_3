@@ -20,6 +20,8 @@
 
 #define TAG "MQTT"
 
+char topic_name[50];
+
 extern xSemaphoreHandle conexaoMQTTSemaphore;
 esp_mqtt_client_handle_t client;
 
@@ -31,7 +33,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event) {
     case MQTT_EVENT_CONNECTED:
       ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
       xSemaphoreGive(conexaoMQTTSemaphore);
-      msg_id = esp_mqtt_client_subscribe(client, "servidor/resposta", 0);
+      msg_id = esp_mqtt_client_subscribe(client, topic_name, 0);
       break;
     case MQTT_EVENT_DISCONNECTED:
       ESP_LOGI(TAG, "MQTT_EVENT_DISCONNECTED");
@@ -66,10 +68,13 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
   mqtt_event_handler_cb(event_data);
 }
 
-void mqtt_start() {
+void mqtt_start(char *topico) {
   esp_mqtt_client_config_t mqtt_config = {
       .uri = "mqtt://broker.hivemq.com:1883",
   };
+  
+  strcpy(topic_name, topico);
+
   client = esp_mqtt_client_init(&mqtt_config);
   esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, client);
   esp_mqtt_client_start(client);

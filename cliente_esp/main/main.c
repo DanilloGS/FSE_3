@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "cJSON.h"
 #include "dht11.h"
 #include "driver/gpio.h"
 #include "esp_event.h"
@@ -11,14 +12,15 @@
 #include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "mqtt.h"
-#include "nvs_flash.h"
+// #include "nvs_flash.h"
+#include "flash_memo.h"
 #include "wifi.h"
 
 #define LED_ESP 2
 #define BOTAO 15
 #define SENSOR 15
 
-// #define LOW_POWER CONFIG_ESP_LOW_POWER
+char topic[50], mac_address[13];
 
 xSemaphoreHandle conexaoWifiSemaphore;
 xSemaphoreHandle conexaoMQTTSemaphore;
@@ -38,64 +40,75 @@ void handle_touch() {
   gpio_set_level(LED_ESP, estado_botao);
 }
 
-char* get_mac_addr() {
+void set_mac() {
   uint8_t mac_base[6] = {0};
-  char mac_addr[13];
   esp_efuse_mac_get_default(mac_base);
-  sprintf(mac_addr, "%02X%02X%02X%02X%02X%02X", mac_base[0], mac_base[1], mac_base[2], mac_base[3], mac_base[4], mac_base[5]);
-  return mac_addr;
+  sprintf(mac_address, "%02X%02X%02X%02X%02X%02X", mac_base[0], mac_base[1], mac_base[2], mac_base[3], mac_base[4], mac_base[5]);
 }
 
-struct dht11_reading avarage_value() {
+void set_topic() {
+  set_mac();
+  strcpy(topic, "fse2021/170139981/dispositivos/");
+  strcat(topic, mac_address);
+}
+
+struct dht11_reading avarage_value(int count) {
   struct dht11_reading avarage = {0, 0, 0};
-  for (size_t i = 0; i < 5; i++) {
-    avarage.temperature += 20.0 + (float)rand() / (float)(RAND_MAX / 10.0);
-    // avarage.temperature += DHT11_read().temperature;
-    // avarage.humidity += DHT11_read().humidity;
-    avarage.humidity += 60.0 + (float)rand() / (float)(RAND_MAX / 10.0);
+  for (size_t i = 0; i < count; i++) {
+    avarage.temperature += DHT11_read().temperature;
+    avarage.humidity += DHT11_read().humidity;
     vTaskDelay(2000 / portTICK_PERIOD_MS);
   }
-  avarage.temperature = avarage.temperature / 5;
-  avarage.humidity = avarage.humidity / 5;
+  avarage.temperature = avarage.temperature / count;
+  avarage.humidity = avarage.humidity / count;
   return avarage;
 }
 
-void conectadoWifi(void* params) {
-  while (true) {
-    if (xSemaphoreTake(conexaoWifiSemaphore, portMAX_DELAY)) {
-      // Processamento Internet
-      mqtt_start();
-    }
-  }
-}
+// void conectadoWifi(void* params) {
+//   while (true) {
+//     if (xSemaphoreTake(conexaoWifiSemaphore, portMAX_DELAY)) {
+//       // Processamento Internet
+//       mqtt_start(topic);
+//     }
+//   }
+// }
 
-void trataComunicacaoComServidor(void* params) {
-  if (xSemaphoreTake(conexaoMQTTSemaphore, portMAX_DELAY)) {
-    while (true) {
-#ifdef CONFIG_ENERGIA
-      struct dht11_reading temp_hum = avarage_value();
-#endif
-#ifdef CONFIG_BATERIA
-// ToDo
-#endif
-    }
-  }
-}
-
+// void trataComunicacaoComServidor(void* params) {
+//   if (xSemaphoreTake(conexaoMQTTSemaphore, portMAX_DELAY)) {
+//     // #ifdef CONFIG_ENERGIA
+//     while (true) {
+//       struct dht11_reading temp_hum = avarage_value();
+//       cJSON* json_response = cJSON_CreateObject();
+//       cJSON_AddNumberToObject(json_response, "temperature", temp_hum.temperature);
+//       mqtt_envia_mensagem("1", cJSON_Print(resHumidity));
+//       cJSON_AddNumberToObject(json_response, "humidity", temp_hum.humidity);
+//       //   mqtt_envia_mensagem("")
+//       //   // ToDo
+//       // }
+// // #endif
+// #ifdef CONFIG_BATERIA
+// // ToDo
+// #endif
+//     }
+//   }
 
 void app_main(void) {
   DHT11_init();
-  esp_err_t ret = nvs_flash_init();
-  if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-    ESP_ERROR_CHECK(nvs_flash_erase());
-    ret = nvs_flash_init();
+
+  int result = le_valor_nvs("topic", topic, 1);
+  
+  if (result == -1) {
+    set_topic();
+    grava_value_nvs("topic", 0, topic, 1);
+  } else {
+    printf("Topico da ESP atual: %s\n", topic);
   }
-  ESP_ERROR_CHECK(ret);
 
-  conexaoWifiSemaphore = xSemaphoreCreateBinary();
-  conexaoMQTTSemaphore = xSemaphoreCreateBinary();
-  wifi_start();
+  // conexaoWifiSemaphore = xSemaphoreCreateBinary();
+  // conexaoMQTTSemaphore = xSemaphoreCreateBinary();
+  // wifi_start();
 
-  xTaskCreate(&conectadoWifi, "Conexão ao MQTT", 4096, NULL, 1, NULL);
-  xTaskCreate(&trataComunicacaoComServidor, "Comunicação com Broker", 4096, NULL, 1, NULL);
+  // xTaskCreate(&conectadoWifi, "Conexão ao MQTT", 4096, NULL, 1, NULL);
+  // xTaskCreate(&trataComunicacaoComServidor, "Comunicação com Broker", 4096, NULL, 1, NULL);
+  // handle_touch();
 }
