@@ -1,14 +1,11 @@
 version: '3.8'
 
 services:
-  central_server:
+  app:
     build:
       context: .
       dockerfile: Dockerfile
     ports:
       - '3000:3000'
-    networks:
-      - central_server_app
-
-networks:
-  central_server_app:
+    volumes:
+      - ./src:/app/src
