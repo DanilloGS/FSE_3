@@ -1,0 +1,25 @@
+#action-button {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+
+  background-color: #3A3AE7;
+  border-radius: 1rem;
+  border: 0;
+
+  padding: 1rem 1.5rem;
+  margin: 2rem 0 2rem 2rem;
+
+  cursor: pointer;
+  transition: 0.2s;
+
+  &:hover {
+    background-color: #2929b6;
+  }
+
+  > h2 {
+    font-size: 1.8rem;
+    margin-left: 1rem;
+    color: #fff;
+  }
+}
