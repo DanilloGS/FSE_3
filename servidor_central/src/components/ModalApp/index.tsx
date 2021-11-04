@@ -1,14 +1,15 @@
+import { ReactNode } from 'react';
 import './styles.scss';
 
 import Modal from 'react-modal';
-import { FiX } from 'react-icons/fi';
 
 interface ModalProps {
   modalIsOpen: boolean;
   closeModal(): void;
+  children: ReactNode;
 }
 
-const ModalApp = ({ modalIsOpen, closeModal }: ModalProps) => {
+const ModalApp = ({ modalIsOpen, closeModal, children }: ModalProps) => {
   return (
     <Modal
       isOpen={modalIsOpen}
@@ -38,29 +39,7 @@ const ModalApp = ({ modalIsOpen, closeModal }: ModalProps) => {
       ariaHideApp={false}
     >
       <div id="modal-app">
-        <header>
-          <h2>Novo dispositivo</h2>
-          <button onClick={closeModal}>
-            <FiX color="#000" size={30} />
-          </button>
-        </header>
-
-        <section>
-          <div className="input-group">
-            <h3>Cômodo do dispositivo</h3>
-            <input />
-          </div>
-          <div className="input-group">
-            <h3>Nome da entrada</h3>
-            <input />
-          </div>
-          <div className="input-group">
-            <h3>Nome da saída</h3>
-            <input />
-          </div>
-        </section>
-
-        <button>Adicionar</button>
+        {children}
       </div>
     </Modal>
   );
