@@ -2,14 +2,12 @@ import { useState } from 'react';
 import './App.scss';
 import './global.scss';
 
-import { FiDownload } from 'react-icons/fi';
-
-import Button from './components/Button';
 import ModalApp from './components/ModalApp';
 import SwitchButton from './components/SwitchButton';
 import NewDeviceFound from './components/NewDeviceFound';
 import NewDeviceAdd from './components/NewDeviceAdd';
 import DeviceCard from './components/DeviceCard';
+import Csv from './components/Csv';
 // import Alarm from './components/Alarm';
 
 function App() {
@@ -17,6 +15,12 @@ function App() {
   const [newDeviceFound, setNewDeviceFound] = useState(true);
   const [alarm, setAlarm] = useState(false);
   const [checked, setChecked] = useState(false);
+
+  const mockData = [
+    { date: '04/11/2021 22:54:17', device: 'Ar-condicionado', event: 'ON' },
+    { date: '27/10/2021 03:14:54', device: 'Sensor de presença', event: 'ON' },
+    { date: '02/11/2021 19:31:15', device: 'Sensor de fumaça', event: 'OFF' },
+  ];
 
   function closeModal() {
     setModalIsOpen(false);
@@ -58,10 +62,7 @@ function App() {
             />
             {/* {checked && <Alarm />} */}
           </div>
-          <Button
-            title="Download logs"
-            icon={<FiDownload color="#fff" size={20} />}
-          />
+          <Csv data={mockData} />
         </section>
       </header>
 
