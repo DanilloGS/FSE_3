@@ -10,6 +10,7 @@ import SwitchButton from './components/SwitchButton';
 import NewDeviceFound from './components/NewDeviceFound';
 import NewDeviceAdd from './components/NewDeviceAdd';
 import DeviceCard from './components/DeviceCard';
+// import Alarm from './components/Alarm';
 
 function App() {
   const [modalIsOpen, setModalIsOpen] = useState(true);
@@ -55,6 +56,7 @@ function App() {
               checked={checked}
               onChange={() => setChecked(!checked)}
             />
+            {/* {checked && <Alarm />} */}
           </div>
           <Button
             title="Download logs"
