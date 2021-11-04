@@ -1,0 +1,22 @@
+#home {
+  width: 100vw;
+
+  display: flex;
+  flex-direction: row;
+  /* justify-content: space-between; */
+
+  > header {
+    width: 100%;
+
+    padding: 3rem 5rem;
+
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+
+    > section {
+      display: flex;
+      flex-direction: row;
+    }
+  }
+}
