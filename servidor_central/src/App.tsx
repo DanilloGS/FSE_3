@@ -9,6 +9,7 @@ import ModalApp from './components/ModalApp';
 import SwitchButton from './components/SwitchButton';
 import NewDeviceFound from './components/NewDeviceFound';
 import NewDeviceAdd from './components/NewDeviceAdd';
+import DeviceCard from './components/DeviceCard';
 
 function App() {
   const [modalIsOpen, setModalIsOpen] = useState(true);
@@ -61,6 +62,18 @@ function App() {
           />
         </section>
       </header>
+
+      <main>
+        <DeviceCard
+          mac="84cca85d1f9c"
+          mode="energia"
+          input="Sensor de Temperatura"
+          output="Ar-condicionado"
+          temperature="30"
+          humidity="70"
+          lastUpdate="04/11/2021 22:54:17"
+        />
+      </main>
     </div>
   );
 }

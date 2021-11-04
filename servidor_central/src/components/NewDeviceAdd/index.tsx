@@ -34,7 +34,7 @@ const NewDeviceAdd = ({ closeModal, checked, onChange }: Props) => {
           <input />
         </div>
         <div className="input-group">
-          <h3 className="switch-alarm">Ativará o alarme</h3>
+          <h3 className="switch-alarm">Ativará o alarme?</h3>
           <SwitchButton checked={checked} onChange={onChange} />
         </div>
       </section>
