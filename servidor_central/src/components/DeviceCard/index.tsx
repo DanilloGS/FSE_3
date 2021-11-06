@@ -29,6 +29,20 @@ const DeviceCard = ({
   toogleDevice,
   removeDevice
 }: Props) => {
+  console.log({
+    room,
+    mac,
+    type,
+    input,
+    output,
+    state,
+    temperature,
+    humidity,
+    lastUpdate,
+    toogleDevice,
+    removeDevice
+  });
+
   return (
     <div id="device-card">
       <div className="info-group">

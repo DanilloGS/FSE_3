@@ -127,7 +127,7 @@ function App() {
   const updatedDevice = (mac: string, type: string, payloadMessage: string) => {
     const res = JSON.parse(payloadMessage);
     console.log("devices: ", devices);
-    
+
     let device: DeviceProps = devices.find(
       (item: DeviceProps) => item.mac == mac
     )!;
@@ -151,14 +151,19 @@ function App() {
       //   setPlayingAlarm(false);
       // }
       console.log(device);
-      
+
       // const oldDevice = [...devices];
+      // let indexDevice = devices?.findIndex((x) => x.mac === mac);
+      // // setDevices([]);
+      // // oldDevice![indexDevice!] = device;
+      // devices.splice(indexDevice, 1);
+      // devices.push(device);
+      // setDevices(devices);
+      const oldDevice = devices;
       let indexDevice = devices?.findIndex((x) => x.mac === mac);
-      // setDevices([]);
-      // oldDevice![indexDevice!] = device;
-      devices.splice(indexDevice, 1);
-      devices.push(device);
-      setDevices(devices);
+      setDevices([]);
+      oldDevice![indexDevice!] = device;
+      setDevices(oldDevice);
     }
   };
 
@@ -341,7 +346,7 @@ function App() {
       </header>
 
       <main>
-        {devices?.map((item) => (
+        {devices.map((item) => (
           <DeviceCard
             key={item.mac}
             room={item.room!}
