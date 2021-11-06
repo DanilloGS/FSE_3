@@ -23,6 +23,7 @@
 #define TAG "MQTT"
 
 extern int first_connection;
+char mac_address[50];
 char topic_name[50];
 
 extern xSemaphoreHandle conexaoMQTTSemaphore;
@@ -36,14 +37,16 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event) {
       ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
       if (first_connection) {
         cJSON *json_connect_esp = cJSON_CreateObject();
-        cJSON_AddStringToObject(json_connect_esp, "esp_topic", topic_name);
+        cJSON_AddStringToObject(json_connect_esp, "mac", mac_address);
+        // 0 Envia
+        cJSON_AddNumberToObject(json_connect_esp, "json_type", 0);
 #ifdef CONFIG_ENERGIA
         printf("energia\n");
-        cJSON_AddStringToObject(json_connect_esp, "type", "energy");
+        cJSON_AddStringToObject(json_connect_esp, "type", "energia");
 #endif
 #ifdef CONFIG_BATERIA
         printf("bateria\n");
-        cJSON_AddStringToObject(json_connect_esp, "type", "batery");
+        cJSON_AddStringToObject(json_connect_esp, "type", "bateria");
 #endif
         mqtt_envia_mensagem(topic_name, cJSON_Print(json_connect_esp));
         cJSON_Delete(json_connect_esp);
@@ -85,12 +88,14 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
   mqtt_event_handler_cb(event_data);
 }
 
-void mqtt_start(char *topico) {
+void mqtt_start(char *topico, char *mac) {
   esp_mqtt_client_config_t mqtt_config = {
       .uri = "mqtt://broker.hivemq.com:1883",
   };
 
   strcpy(topic_name, topico);
+  strcpy(mac_address, mac);
+
   client = esp_mqtt_client_init(&mqtt_config);
   esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, client);
   esp_mqtt_client_start(client);
@@ -107,8 +112,8 @@ void mqtt_response_handler(char *data_from_host) {
     perror("MQTT");
   else {
     cJSON *json_type = cJSON_GetObjectItemCaseSensitive(raw_json, "json_type");
-    printf("%s\n", cJSON_Print(raw_json));
-    if (json_type->valueint == 0 && first_connection == 1) {
+
+    if (json_type->valueint == 10 && first_connection == 1) {
       cJSON *device = cJSON_GetObjectItemCaseSensitive(raw_json, "device");
       char *home_location = cJSON_GetObjectItemCaseSensitive(device, "room")->valuestring;
       char *output = cJSON_GetObjectItemCaseSensitive(device, "output")->valuestring;
@@ -122,14 +127,14 @@ void mqtt_response_handler(char *data_from_host) {
       grava_value_nvs("output_name", 0, output, string_type);
 
       xSemaphoreGive(conexaoMQTTSemaphore);
-    } else if (json_type->valueint == 1) {
+    } else if (json_type->valueint == 11) {
+      nvs_flash_erase_partition("DadosNVS");
+      esp_restart();
+    } else if (json_type->valueint == 12) {
       int esp_state = le_valor_nvs("esp_state", "", integer_type);
       esp_state = !esp_state;
       grava_value_nvs("esp_state", esp_state, "", integer_type);
-    } else if (json_type->valueint == 2) {
-      nvs_flash_erase_partition("DadosNVS");
-      esp_restart();
-    } else if (json_type->valueint == 4) {
+    } else {
       ESP_LOGI(TAG, "Echo do MQTT tratado");
     }
   }

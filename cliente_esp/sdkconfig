@@ -140,8 +140,8 @@ CONFIG_ESP_MAXIMUM_RETRY=5
 #
 # Configuração de energia
 #
-# CONFIG_ENERGIA is not set
-CONFIG_BATERIA=y
+CONFIG_ENERGIA=y
+# CONFIG_BATERIA is not set
 # end of Configuração de energia
 
 #
