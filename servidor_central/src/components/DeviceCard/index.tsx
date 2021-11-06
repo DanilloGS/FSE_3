@@ -3,34 +3,42 @@ import './styles.scss';
 import { FiTrash2, FiPower } from 'react-icons/fi';
 
 interface Props {
-  mac: string;
-  mode: string;
+  mac?: string;
+  type?: string;
+  room?: string;
   input?: string;
   output?: string;
-  temperature?: string;
-  humidity?: string;
-  lastUpdate: string;
+  state?: number;
+  temperature?: number;
+  humidity?: number;
+  lastUpdate?: string;
+  removeDevice(): void;
+  toogleDevice(): void;
 }
 
 const DeviceCard = ({
+  room,
   mac,
-  mode,
+  type,
   input,
   output,
+  state,
   temperature,
   humidity,
   lastUpdate,
+  toogleDevice,
+  removeDevice
 }: Props) => {
   return (
     <div id="device-card">
       <div className="info-group">
-        <h2>Quarto - </h2>
+        <h2>{room} - </h2>
         <p>MAC: {mac}</p>
       </div>
 
       <div className="info-group">
         <h3>Modo:</h3>
-        <p>{mode}</p>
+        <p>{type}</p>
       </div>
 
       <div className="info-group">
@@ -43,14 +51,23 @@ const DeviceCard = ({
       <div className="info-group">
         <h3>Saída:</h3>
         <p>
-          {output} - <span>ON</span>
+          {output} -{' '}
+          {state ? (
+            <span className="state-on">ON</span>
+          ) : (
+            <span className="state-off">OFF</span>
+          )}
         </p>
 
-        <h3 className="temp-and-humi">Temperatura:</h3>
-        <p>{temperature} ºC</p>
+        {input?.search(/temperatura/i)! >= 0 ? (
+          <>
+            <h3 className="temp-and-humi">Temperatura:</h3>
+            <p>{temperature} ºC</p>
 
-        <h3 className="temp-and-humi">Umidade:</h3>
-        <p>{humidity} %</p>
+            <h3 className="temp-and-humi">Umidade:</h3>
+            <p>{humidity} %</p>
+          </>
+        ) : null}
       </div>
 
       <footer>
@@ -60,11 +77,11 @@ const DeviceCard = ({
         </div>
 
         <aside>
-          <button>
+          <button onClick={toogleDevice}>
             <FiPower color="#22ac57" size={26} />
             <h3 className="on-off-device">DESLIGAR DISPOSITIVO</h3>
           </button>
-          <button>
+          <button onClick={removeDevice}>
             <FiTrash2 color="#a32929" size={26} />
             <h3>REMOVER DISPOSITIVO</h3>
           </button>
