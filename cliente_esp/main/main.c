@@ -4,21 +4,22 @@
 #include "cJSON.h"
 #include "dht11.h"
 #include "driver/gpio.h"
+#include "driver/rtc_io.h"
 #include "esp_event.h"
 #include "esp_log.h"
-#include "esp_wifi.h"
 #include "esp_sleep.h"
+#include "esp_wifi.h"
+#include "flash_memo.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "mqtt.h"
-// #include "nvs_flash.h"
-#include "flash_memo.h"
 #include "wifi.h"
 
 #define LED 2
 #define BOTAO 0
+#define BUTTON_PIN_BITMASK 0x200000000
 
 char esp_topic[50], mac_address[13], temp_topic[50], hum_topic[50], state_topic[50];
 int esp_state, first_connection;
@@ -77,9 +78,8 @@ static void IRAM_ATTR gpio_isr_handler(void *args) {
   xQueueSendFromISR(filaDeInterrupcao, &pino, NULL);
 }
 
-void handle_gpio() {
+void handle_gpio(void *params) {
   int pino;
-
   while (true) {
     if (xQueueReceive(filaDeInterrupcao, &pino, portMAX_DELAY)) {
       // De-bouncing
@@ -106,21 +106,6 @@ void handle_gpio() {
       gpio_set_level(LED, 0);
     }
   }
-}
-
-void trataBotaoPressionadoLowPower() {
-    // Trata segurar botão para reiniciar
-    int estado = gpio_get_level(BOTAO);
-    if (estado == 0) {
-        gpio_isr_handler_remove(BOTAO);
-        int contadorPressionado = 0;
-        printf("Apertou o botão\n");
-       
-        // Habilitar novamente a interrupção
-        vTaskDelay(50 / portTICK_PERIOD_MS);
-        gpio_isr_handler_add(BOTAO, gpio_isr_handler,
-                             (void *)BOTAO);
-    }
 }
 
 void connect_wifi(void *params) {
@@ -166,12 +151,14 @@ void handle_server(void *params) {
       mqtt_envia_mensagem(state_topic, cJSON_Print(json_response_status));
     }
 #endif
-// #ifdef CONFIG_BATERIA
-    trataBotaoPressionadoLowPower();
+#ifdef CONFIG_BATERIA
     printf("Atualizando estado da ESP\n");
 
-    esp_state = le_valor_nvs("esp_state", "", integer_type);
-  
+    rtc_gpio_pullup_en(BOTAO);
+    rtc_gpio_pulldown_dis(BOTAO);
+    esp_sleep_enable_ext0_wakeup(BOTAO, 0);
+    gpio_set_level(LED, 1);
+    esp_state = !le_valor_nvs("esp_state", "", integer_type);
     cJSON *json_response_status = cJSON_CreateObject();
 
     cJSON_AddNumberToObject(json_response_status, "status", esp_state);
@@ -180,10 +167,14 @@ void handle_server(void *params) {
 
     mqtt_envia_mensagem(esp_topic, cJSON_Print(json_response_status));
 
+    vTaskDelay(500 / portTICK_PERIOD_MS);
+    grava_value_nvs("esp_state", esp_state, "", integer_type);
+    gpio_set_level(LED, 0);
     printf("Ativando economia de energia\n");
-
     esp_deep_sleep_start();
-// #endif
+    mqtt_envia_mensagem(esp_topic, cJSON_Print(json_response_status));
+
+#endif
   }
 }
 
