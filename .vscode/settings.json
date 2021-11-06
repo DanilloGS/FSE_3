@@ -1,3 +1,10 @@
 {
-    "C_Cpp.errorSquiggles": "Enabled"
+    "C_Cpp.errorSquiggles": "Enabled",
+    "files.associations": {
+        "cjson.h": "c",
+        "flash_memo.h": "c",
+        "wifi.h": "c",
+        "type_traits": "c",
+        "string.h": "c"
+    }
 }

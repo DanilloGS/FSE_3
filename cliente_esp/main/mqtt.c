@@ -5,10 +5,12 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "cJSON.h"
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_netif.h"
 #include "esp_system.h"
+#include "flash_memo.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
@@ -20,23 +22,44 @@
 
 #define TAG "MQTT"
 
+extern int first_connection;
+char mac_address[50];
+char topic_name[50];
+
 extern xSemaphoreHandle conexaoMQTTSemaphore;
 esp_mqtt_client_handle_t client;
 
 static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event) {
   esp_mqtt_client_handle_t client = event->client;
-  int msg_id;
 
   switch (event->event_id) {
     case MQTT_EVENT_CONNECTED:
       ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
-      xSemaphoreGive(conexaoMQTTSemaphore);
-      msg_id = esp_mqtt_client_subscribe(client, "servidor/resposta", 0);
+      if (first_connection) {
+        cJSON *json_connect_esp = cJSON_CreateObject();
+        cJSON_AddStringToObject(json_connect_esp, "mac", mac_address);
+        // 0 Envia
+        cJSON_AddNumberToObject(json_connect_esp, "json_type", 0);
+#ifdef CONFIG_ENERGIA
+        printf("energia\n");
+        cJSON_AddStringToObject(json_connect_esp, "type", "energia");
+#endif
+#ifdef CONFIG_BATERIA
+        printf("bateria\n");
+        cJSON_AddStringToObject(json_connect_esp, "type", "bateria");
+#endif
+        mqtt_envia_mensagem(topic_name, cJSON_Print(json_connect_esp));
+        cJSON_Delete(json_connect_esp);
+      }
+      printf("%s\n", topic_name);
+      esp_mqtt_client_subscribe(client, topic_name, 0);
+      if (first_connection == 0) {
+        xSemaphoreGive(conexaoMQTTSemaphore);
+      }
       break;
     case MQTT_EVENT_DISCONNECTED:
       ESP_LOGI(TAG, "MQTT_EVENT_DISCONNECTED");
       break;
-
     case MQTT_EVENT_SUBSCRIBED:
       ESP_LOGI(TAG, "MQTT_EVENT_SUBSCRIBED, msg_id=%d", event->msg_id);
       break;
@@ -48,8 +71,7 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event) {
       break;
     case MQTT_EVENT_DATA:
       ESP_LOGI(TAG, "MQTT_EVENT_DATA");
-      printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
-      printf("DATA=%.*s\r\n", event->data_len, event->data);
+      mqtt_response_handler(event->data);
       break;
     case MQTT_EVENT_ERROR:
       ESP_LOGI(TAG, "MQTT_EVENT_ERROR");
@@ -66,10 +88,14 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
   mqtt_event_handler_cb(event_data);
 }
 
-void mqtt_start() {
+void mqtt_start(char *topico, char *mac) {
   esp_mqtt_client_config_t mqtt_config = {
       .uri = "mqtt://broker.hivemq.com:1883",
   };
+
+  strcpy(topic_name, topico);
+  strcpy(mac_address, mac);
+
   client = esp_mqtt_client_init(&mqtt_config);
   esp_mqtt_client_register_event(client, ESP_EVENT_ANY_ID, mqtt_event_handler, client);
   esp_mqtt_client_start(client);
@@ -78,4 +104,38 @@ void mqtt_start() {
 void mqtt_envia_mensagem(char *topico, char *mensagem) {
   int message_id = esp_mqtt_client_publish(client, topico, mensagem, 0, 1, 0);
   ESP_LOGI(TAG, "Mensagem enviada, ID: %d", message_id);
+}
+
+void mqtt_response_handler(char *data_from_host) {
+  cJSON *raw_json = cJSON_Parse(data_from_host);
+  if (raw_json == NULL)
+    perror("MQTT");
+  else {
+    cJSON *json_type = cJSON_GetObjectItemCaseSensitive(raw_json, "json_type");
+
+    if (json_type->valueint == 10 && first_connection == 1) {
+      cJSON *device = cJSON_GetObjectItemCaseSensitive(raw_json, "device");
+      char *home_location = cJSON_GetObjectItemCaseSensitive(device, "room")->valuestring;
+      char *output = cJSON_GetObjectItemCaseSensitive(device, "output")->valuestring;
+
+#ifdef CONFIG_ENERGIA
+      char *input = cJSON_GetObjectItemCaseSensitive(device, "input")->valuestring;
+      grava_value_nvs("input_name", 0, input, string_type);
+#endif
+
+      grava_value_nvs("house_topic", 0, home_location, string_type);
+      grava_value_nvs("output_name", 0, output, string_type);
+
+      xSemaphoreGive(conexaoMQTTSemaphore);
+    } else if (json_type->valueint == 11) {
+      nvs_flash_erase_partition("DadosNVS");
+      esp_restart();
+    } else if (json_type->valueint == 12) {
+      int esp_state = le_valor_nvs("esp_state", "", integer_type);
+      esp_state = !esp_state;
+      grava_value_nvs("esp_state", esp_state, "", integer_type);
+    } else {
+      ESP_LOGI(TAG, "Echo do MQTT tratado");
+    }
+  }
 }
