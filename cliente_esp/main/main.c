@@ -108,21 +108,6 @@ void handle_gpio() {
   }
 }
 
-void trataBotaoPressionadoLowPower() {
-    // Trata segurar botão para reiniciar
-    int estado = gpio_get_level(BOTAO);
-    if (estado == 0) {
-        gpio_isr_handler_remove(BOTAO);
-        int contadorPressionado = 0;
-        printf("Apertou o botão\n");
-       
-        // Habilitar novamente a interrupção
-        vTaskDelay(50 / portTICK_PERIOD_MS);
-        gpio_isr_handler_add(BOTAO, gpio_isr_handler,
-                             (void *)BOTAO);
-    }
-}
-
 void connect_wifi(void *params) {
   while (true) {
     if (xSemaphoreTake(conexaoWifiSemaphore, portMAX_DELAY)) {
