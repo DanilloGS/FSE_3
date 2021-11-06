@@ -7,6 +7,7 @@
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_wifi.h"
+#include "esp_sleep.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
@@ -33,9 +34,6 @@ void init_button() {
   gpio_pad_select_gpio(BOTAO);
   gpio_set_direction(BOTAO, GPIO_MODE_INPUT);
 
-  esp_state = le_valor_nvs("esp_state", "", integer_type);
-  gpio_set_level(LED, esp_state);
-
   gpio_pulldown_en(BOTAO);
   gpio_pullup_dis(BOTAO);
 
@@ -55,18 +53,74 @@ void set_esp_topic() {
 }
 
 void set_house_topics() {
-  char house_topic[50], aux_house_topic[50];
+  char house_topic[50], aux_house_topic[50] = "fse2021/170139981/";
   le_valor_nvs("house_topic", house_topic, string_type);
-  strcpy(aux_house_topic, hum_topic);
+  strcat(aux_house_topic, house_topic);
 
+#ifdef CONFIG_ENERGIA
+  strcpy(house_topic, aux_house_topic);
   strcat(house_topic, "/temperatura");
   strcpy(temp_topic, house_topic);
 
-  strcpy(hum_topic, aux_house_topic);
-  strcat(hum_topic, "/umidade");
+  strcpy(house_topic, aux_house_topic);
+  strcat(house_topic, "/umidade");
+  strcpy(hum_topic, house_topic);
+#endif
 
-  strcpy(hum_topic, aux_house_topic);
-  strcat(state_topic, "/estado");
+  strcpy(house_topic, aux_house_topic);
+  strcat(house_topic, "/estado");
+  strcpy(state_topic, house_topic);
+}
+
+static void IRAM_ATTR gpio_isr_handler(void *args) {
+  int pino = (int)args;
+  xQueueSendFromISR(filaDeInterrupcao, &pino, NULL);
+}
+
+void handle_gpio() {
+  int pino;
+
+  while (true) {
+    if (xQueueReceive(filaDeInterrupcao, &pino, portMAX_DELAY)) {
+      // De-bouncing
+      int estado = gpio_get_level(pino);
+      if (estado == 0) {
+        gpio_set_level(LED, 1);
+        printf("Apertou o botão\n");
+
+        esp_state = !le_valor_nvs("esp_state", "", integer_type);
+        vTaskDelay(50 / portTICK_PERIOD_MS);
+        cJSON *json_response = cJSON_CreateObject();
+
+        cJSON_AddNumberToObject(json_response, "status", esp_state);
+        cJSON_AddStringToObject(json_response, "mac", mac_address);
+        cJSON_AddNumberToObject(json_response, "json_type", 4);
+
+        grava_value_nvs("esp_state", esp_state, "", integer_type);
+
+        gpio_isr_handler_remove(pino);
+
+        vTaskDelay(50 / portTICK_PERIOD_MS);
+        gpio_isr_handler_add(pino, gpio_isr_handler, (void *)pino);
+      }
+      gpio_set_level(LED, 0);
+    }
+  }
+}
+
+void trataBotaoPressionadoLowPower() {
+    // Trata segurar botão para reiniciar
+    int estado = gpio_get_level(BOTAO);
+    if (estado == 0) {
+        gpio_isr_handler_remove(BOTAO);
+        int contadorPressionado = 0;
+        printf("Apertou o botão\n");
+       
+        // Habilitar novamente a interrupção
+        vTaskDelay(50 / portTICK_PERIOD_MS);
+        gpio_isr_handler_add(BOTAO, gpio_isr_handler,
+                             (void *)BOTAO);
+    }
 }
 
 void connect_wifi(void *params) {
@@ -79,79 +133,57 @@ void connect_wifi(void *params) {
 
 void handle_server(void *params) {
   if (xSemaphoreTake(conexaoMQTTSemaphore, portMAX_DELAY)) {
-    // Atrasar a ligação do sensor
     set_house_topics();
 #ifdef CONFIG_ENERGIA
     while (true) {
-      if (esp_state == 1) {
+      if (esp_state) {
         struct dht11_reading temp_hum = avarage_value(5);
         printf("temp %d hum: %d status: %d\n", temp_hum.temperature, temp_hum.humidity, temp_hum.status);
 
         cJSON *json_response_temp = cJSON_CreateObject();
         cJSON *json_response_humid = cJSON_CreateObject();
+        cJSON *json_response_status = cJSON_CreateObject();
 
         cJSON_AddNumberToObject(json_response_temp, "temperature", temp_hum.temperature);
         cJSON_AddStringToObject(json_response_temp, "mac", mac_address);
+        cJSON_AddNumberToObject(json_response_temp, "json_type", 4);
+
         mqtt_envia_mensagem(temp_topic, cJSON_Print(json_response_temp));
 
         cJSON_AddNumberToObject(json_response_humid, "humidity", temp_hum.humidity);
         cJSON_AddStringToObject(json_response_humid, "mac", mac_address);
+        cJSON_AddNumberToObject(json_response_humid, "json_type", 4);
+
         mqtt_envia_mensagem(hum_topic, cJSON_Print(json_response_humid));
-
-        cJSON_Delete(json_response_temp);
-        cJSON_Delete(json_response_humid);
+      } else {
+        vTaskDelay(10000 / portTICK_PERIOD_MS);
       }
+      esp_state = le_valor_nvs("esp_state", "", integer_type);
+      cJSON_AddNumberToObject(json_response_status, "status", esp_state);
+      cJSON_AddStringToObject(json_response_status, "mac", mac_address);
+      cJSON_AddNumberToObject(json_response_status, "json_type", 4);
+
+      mqtt_envia_mensagem(state_topic, cJSON_Print(json_response_status));
     }
 #endif
-#ifdef CONFIG_BATERIA
-// ToDo
-#endif
-  }
-}
+// #ifdef CONFIG_BATERIA
+    trataBotaoPressionadoLowPower();
+    printf("Atualizando estado da ESP\n");
 
-static void IRAM_ATTR gpio_isr_handler(void *args) {
-  int pino = (int)args;
-  xQueueSendFromISR(filaDeInterrupcao, &pino, NULL);
-}
+    esp_state = le_valor_nvs("esp_state", "", integer_type);
+  
+    cJSON *json_response_status = cJSON_CreateObject();
 
-void handle_gipo(void *params) {
-  int pino;
+    cJSON_AddNumberToObject(json_response_status, "status", esp_state);
+    cJSON_AddStringToObject(json_response_status, "mac", mac_address);
+    cJSON_AddNumberToObject(json_response_status, "json_type", 4);
 
-  while (true) {
-    if (xQueueReceive(filaDeInterrupcao, &pino, portMAX_DELAY)) {
-      // De-bouncing
-      int estado = gpio_get_level(pino);
-      if (estado == 0) {
-        printf("Apertou o botão\n");
+    mqtt_envia_mensagem(esp_topic, cJSON_Print(json_response_status));
 
-        if (esp_state == 0) {
-          esp_state = 1;
-        } else {
-          esp_state = 0;
-        }
+    printf("Ativando economia de energia\n");
 
-        gpio_set_level(LED, esp_state);
-        vTaskDelay(50 / portTICK_PERIOD_MS);
-
-        cJSON *json_response = cJSON_CreateObject();
-        cJSON_AddNumberToObject(json_response, "status", esp_state);
-        cJSON_AddStringToObject(json_response, "mac", mac_address);
-
-        mqtt_envia_mensagem(esp_topic, cJSON_Print(json_response));
-
-        grava_value_nvs("esp_state", esp_state, "", integer_type);
-        printf("Estado da ESP conectada: %d\n", esp_state);
-
-        gpio_isr_handler_remove(pino);
-
-        while (gpio_get_level(pino) == estado) {
-          vTaskDelay(50 / portTICK_PERIOD_MS);
-        }
-
-        vTaskDelay(50 / portTICK_PERIOD_MS);
-        gpio_isr_handler_add(pino, gpio_isr_handler, (void *)pino);
-      }
-    }
+    esp_deep_sleep_start();
+// #endif
   }
 }
 
@@ -183,12 +215,11 @@ void app_main(void) {
   wifi_start();
 
   filaDeInterrupcao = xQueueCreate(10, sizeof(int));
-  xTaskCreate(&handle_gipo, "TrataBotao", 2048, NULL, 1, NULL);
+  xTaskCreate(&handle_gpio, "TrataBotao", 2048, NULL, 1, NULL);
 
   gpio_install_isr_service(0);
   gpio_isr_handler_add(BOTAO, gpio_isr_handler, (void *)BOTAO);
 
   xTaskCreate(&connect_wifi, "Conexão ao MQTT", 4096, NULL, 1, NULL);
   xTaskCreate(&handle_server, "Comunicação com Broker", 4096, NULL, 1, NULL);
-  xSemaphoreGive(conexaoMQTTSemaphore);
 }

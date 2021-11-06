@@ -48,7 +48,11 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event) {
         mqtt_envia_mensagem(topic_name, cJSON_Print(json_connect_esp));
         cJSON_Delete(json_connect_esp);
       }
+      printf("%s\n", topic_name);
       esp_mqtt_client_subscribe(client, topic_name, 0);
+      if (first_connection == 0) {
+        xSemaphoreGive(conexaoMQTTSemaphore);
+      }
       break;
     case MQTT_EVENT_DISCONNECTED:
       ESP_LOGI(TAG, "MQTT_EVENT_DISCONNECTED");
@@ -98,23 +102,35 @@ void mqtt_envia_mensagem(char *topico, char *mensagem) {
 }
 
 void mqtt_response_handler(char *data_from_host) {
-  if (data_from_host[0] == '{') {
-    cJSON *raw_json = cJSON_Parse(data_from_host);
+  cJSON *raw_json = cJSON_Parse(data_from_host);
+  if (raw_json == NULL)
+    perror("MQTT");
+  else {
     cJSON *json_type = cJSON_GetObjectItemCaseSensitive(raw_json, "json_type");
-    if (json_type->valueint == 0) {
-        cJSON *home_location = cJSON_GetObjectItemCaseSensitive(raw_json, "comodo");
-        cJSON *output = cJSON_GetObjectItemCaseSensitive(raw_json, "output");
-        cJSON *input = cJSON_GetObjectItemCaseSensitive(raw_json, "input");
-        char *home_location_aux = "fse2021/170139981/";
-        strcat(home_location_aux, home_location->string);
-        printf("%s\n%s\n%s\n", home_location_aux, output->string, input->string);
-        grava_value_nvs("house_topic", 0, home_location_aux, string_type);
-        grava_value_nvs("output_name", 0, output->string, string_type);
-        grava_value_nvs("input_name", 0, input->string, string_type);
+    printf("%s\n", cJSON_Print(raw_json));
+    if (json_type->valueint == 0 && first_connection == 1) {
+      cJSON *device = cJSON_GetObjectItemCaseSensitive(raw_json, "device");
+      char *home_location = cJSON_GetObjectItemCaseSensitive(device, "room")->valuestring;
+      char *output = cJSON_GetObjectItemCaseSensitive(device, "output")->valuestring;
+
+#ifdef CONFIG_ENERGIA
+      char *input = cJSON_GetObjectItemCaseSensitive(device, "input")->valuestring;
+      grava_value_nvs("input_name", 0, input, string_type);
+#endif
+
+      grava_value_nvs("house_topic", 0, home_location, string_type);
+      grava_value_nvs("output_name", 0, output, string_type);
+
+      xSemaphoreGive(conexaoMQTTSemaphore);
     } else if (json_type->valueint == 1) {
-      printf("Json 1\n");
+      int esp_state = le_valor_nvs("esp_state", "", integer_type);
+      esp_state = !esp_state;
+      grava_value_nvs("esp_state", esp_state, "", integer_type);
     } else if (json_type->valueint == 2) {
-      printf("Json 2\n");
+      nvs_flash_erase_partition("DadosNVS");
+      esp_restart();
+    } else if (json_type->valueint == 4) {
+      ESP_LOGI(TAG, "Echo do MQTT tratado");
     }
   }
 }
