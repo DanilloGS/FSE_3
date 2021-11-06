@@ -59,7 +59,7 @@ const DeviceCard = ({
           )}
         </p>
 
-        {input?.search(/temperatura/i)! >= 0 ? (
+        {type === "energia" ? (
           <>
             <h3 className="temp-and-humi">Temperatura:</h3>
             <p>{temperature} ºC</p>

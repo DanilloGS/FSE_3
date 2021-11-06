@@ -28,6 +28,8 @@ interface DeviceProps {
   lastUpdate?: string;
 }
 
+const devicesGlobal = [];
+
 function App() {
   const [client, setClient] = useState<mqtt.MqttClient>();
   const [connectStatus, setConnectStatus] = useState('');
@@ -40,9 +42,11 @@ function App() {
   const [devices, setDevices] = useState<DeviceProps[]>([]);
   const [newDeviceHost] = useState('fse2021/170139981/dispositivos/+');
 
+
+
   const broker = {
-    host: 'broker.emqx.io',
-    port: '8083',
+    host: 'broker.mqttdashboard.com',
+    port: '8000',
   };
 
   const sub = {
@@ -58,10 +62,14 @@ function App() {
 
   const registerDevice = (mac: string, type: string) => {
     let object: DeviceProps = { mac, type };
-
-    setDeviceInfo(object);
-    setModalIsOpen(true);
-    setNewDeviceFound(true);
+    if (object !== undefined) {
+      setDeviceInfo(object);
+      const host = newDeviceHost.replace('+', mac!);
+      sub.topic = host;
+      mqttSub(sub, client!);
+      setModalIsOpen(true);
+      setNewDeviceFound(true);
+    }
   };
 
   const includeDevice = (device: DeviceProps) => {
@@ -70,7 +78,8 @@ function App() {
     device.state = 0;
     device.isAlarm = isAlarmDevice === true ? 1 : 0;
     device.lastUpdate = new Date().toLocaleString();
-    setDevices((oldDevices) => [...oldDevices, device]);
+    devices.push(device);
+    setDevices(devices);
     const host = newDeviceHost.replace('+', device?.mac!);
     const data = {
       json_type: 10,
@@ -99,40 +108,63 @@ function App() {
     if (index !== -1) {
       oldDevices.splice(index, 1);
     }
-
     setDevices(oldDevices);
+
+    const data = {
+      json_type: 11,
+      device,
+    };
+
+    const host = newDeviceHost.replace('+', mac!);
+    const context = {
+      topic: host,
+      qos: 2,
+      payload: JSON.stringify(data),
+    };
+    mqttPublish(context, client!);
   };
 
   const updatedDevice = (mac: string, type: string, payloadMessage: string) => {
     const res = JSON.parse(payloadMessage);
-    let device: DeviceProps = devices?.find(
-      (item: DeviceProps) => item.mac === mac
+    console.log("devices: ", devices);
+    
+    let device: DeviceProps = devices.find(
+      (item: DeviceProps) => item.mac == mac
     )!;
 
-    if (device !== undefined) {
-      if (device.input?.search(/temperatura/i)! >= 0) {
-        if (type === 'energia') {
-          device.temperature = res.temperature;
-          device.humidity = res.humidity;
-        }
+
+    console.log("-->", res);
+    console.log("device-->", device);
+
+    if (device !== undefined || device >= 0) {
+      if (device.type === 'energia') {
+        device.temperature = res.temperature;
+        device.humidity = res.humidity;
       }
       device.mac = mac;
       device.state = res.state;
       device.lastUpdate = new Date().toLocaleString();
 
-      if (device.isAlarm && device.state && activeAlarm) {
-        setPlayingAlarm(true);
-      } else {
-        setPlayingAlarm(false);
-      }
+      // if (device.isAlarm && device.state && activeAlarm) {
+      //   setPlayingAlarm(true);
+      // } else {
+      //   setPlayingAlarm(false);
+      // }
+      console.log(device);
+      
+      // const oldDevice = [...devices];
+      let indexDevice = devices?.findIndex((x) => x.mac === mac);
+      // setDevices([]);
+      // oldDevice![indexDevice!] = device;
+      devices.splice(indexDevice, 1);
+      devices.push(device);
+      setDevices(devices);
     }
-
-    const oldDevice = devices;
-    let indexDevice = devices?.findIndex((x) => x.mac === mac);
-    setDevices([]);
-    oldDevice![indexDevice!] = device;
-    setDevices(oldDevice);
   };
+
+  useEffect(() => {
+    console.log("UE---> ", devices);
+  }, [devices])
 
   const toggleDevice = (mac: string) => {
     let device: DeviceProps = devices?.find(
@@ -141,7 +173,7 @@ function App() {
     const host = newDeviceHost.replace('+', device.mac!);
     device.state = device.state === 1 ? 0 : 1;
     const data = {
-      json_type: 2,
+      json_type: 12,
       device,
     };
     const context = {
@@ -162,6 +194,7 @@ function App() {
     const messageReceived = (payload: any) => {
       const res = JSON.parse(payload.message);
       const { json_type, type, mac } = res;
+      console.log("----> ", res);
 
       let mac_device: string;
       console.log(type);
@@ -198,8 +231,8 @@ function App() {
       }
     };
 
+
     if (client) {
-      // console.log(client);
       client.on('connect', () => {
         setConnectStatus('Connected');
       });
@@ -215,8 +248,10 @@ function App() {
         messageReceived(payload);
       });
     }
-    console.log(connectStatus);
-  }, [updatedDevice, registerDevice]);
+    // console.log(connectStatus);
+  }, [client]);
+
+  useEffect(() => { }, [devices]);
 
   useEffect(() => {
     function init() {
@@ -286,13 +321,15 @@ function App() {
           </div>
           <Csv data={mockData} />
           <button
-            onClick={() =>
+            onClick={() => {
               mqttConnect(
                 `ws://${broker.host}:${broker.port}/mqtt`,
                 options,
                 setClient,
                 mqtt
               )
+              setDevices([]);
+            }
             }
           >
             con

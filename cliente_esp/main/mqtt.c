@@ -38,7 +38,6 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event) {
       if (first_connection) {
         cJSON *json_connect_esp = cJSON_CreateObject();
         cJSON_AddStringToObject(json_connect_esp, "mac", mac_address);
-        // 0 Envia
         cJSON_AddNumberToObject(json_connect_esp, "json_type", 0);
 #ifdef CONFIG_ENERGIA
         printf("energia\n");
@@ -48,11 +47,11 @@ static esp_err_t mqtt_event_handler_cb(esp_mqtt_event_handle_t event) {
         printf("bateria\n");
         cJSON_AddStringToObject(json_connect_esp, "type", "bateria");
 #endif
-        mqtt_envia_mensagem(topic_name, cJSON_Print(json_connect_esp));
+        printf("%s\n", cJSON_Print(json_connect_esp));
+        mqtt_envia_mensagem("fse2021/170139981/dispositivos/", cJSON_Print(json_connect_esp));
         cJSON_Delete(json_connect_esp);
       }
-      printf("%s\n", topic_name);
-      esp_mqtt_client_subscribe(client, topic_name, 0);
+      esp_mqtt_client_subscribe(client, topic_name, 2);
       if (first_connection == 0) {
         xSemaphoreGive(conexaoMQTTSemaphore);
       }
@@ -102,12 +101,13 @@ void mqtt_start(char *topico, char *mac) {
 }
 
 void mqtt_envia_mensagem(char *topico, char *mensagem) {
-  int message_id = esp_mqtt_client_publish(client, topico, mensagem, 0, 1, 0);
+  int message_id = esp_mqtt_client_publish(client, topico, mensagem, 0, 2, 0);
   ESP_LOGI(TAG, "Mensagem enviada, ID: %d", message_id);
 }
 
 void mqtt_response_handler(char *data_from_host) {
   cJSON *raw_json = cJSON_Parse(data_from_host);
+  printf("%s\n", cJSON_Print(raw_json));
   if (raw_json == NULL)
     perror("MQTT");
   else {
@@ -132,6 +132,7 @@ void mqtt_response_handler(char *data_from_host) {
       esp_restart();
     } else if (json_type->valueint == 12) {
       int esp_state = le_valor_nvs("esp_state", "", integer_type);
+      printf("----> %d\n", esp_state);
       esp_state = !esp_state;
       grava_value_nvs("esp_state", esp_state, "", integer_type);
     } else {

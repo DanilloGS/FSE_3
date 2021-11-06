@@ -90,11 +90,6 @@ void handle_gpio(void *params) {
 
         esp_state = !le_valor_nvs("esp_state", "", integer_type);
         vTaskDelay(50 / portTICK_PERIOD_MS);
-        cJSON *json_response = cJSON_CreateObject();
-
-        cJSON_AddNumberToObject(json_response, "status", esp_state);
-        cJSON_AddStringToObject(json_response, "mac", mac_address);
-        cJSON_AddNumberToObject(json_response, "json_type", 4);
 
         grava_value_nvs("esp_state", esp_state, "", integer_type);
 
@@ -122,46 +117,27 @@ void handle_server(void *params) {
 #ifdef CONFIG_ENERGIA
     while (true) {
       cJSON *json_response_default = cJSON_CreateObject();
-      cJSON *json_response_status = cJSON_CreateObject();
 
       if (esp_state) {
         struct dht11_reading temp_hum = avarage_value(5);
-
-        cJSON *json_response_temp = cJSON_CreateObject();
-        cJSON *json_response_humid = cJSON_CreateObject();
-
-        cJSON_AddNumberToObject(json_response_temp, "temperature", temp_hum.temperature);
-        cJSON_AddStringToObject(json_response_temp, "mac", mac_address);
-        cJSON_AddNumberToObject(json_response_temp, "json_type", 2);
-
-        mqtt_envia_mensagem(temp_topic, cJSON_Print(json_response_temp));
-        vTaskDelay(500 / portTICK_PERIOD_MS);
-
-        cJSON_AddNumberToObject(json_response_humid, "humidity", temp_hum.humidity);
-        cJSON_AddStringToObject(json_response_humid, "mac", mac_address);
-        cJSON_AddNumberToObject(json_response_humid, "json_type", 2);
-
-        mqtt_envia_mensagem(hum_topic, cJSON_Print(json_response_humid));
-        vTaskDelay(500 / portTICK_PERIOD_MS);
-
-        cJSON_AddNumberToObject(json_response_default, "humidity", temp_hum.humidity);
         cJSON_AddNumberToObject(json_response_default, "temperature", temp_hum.temperature);
+        cJSON_AddNumberToObject(json_response_default, "humidity", temp_hum.humidity);
       }
 
       esp_state = le_valor_nvs("esp_state", "", integer_type);
-      cJSON_AddNumberToObject(json_response_status, "status", esp_state);
-      cJSON_AddStringToObject(json_response_status, "mac", mac_address);
-      cJSON_AddNumberToObject(json_response_status, "json_type", 2);
-      
-      mqtt_envia_mensagem(state_topic, cJSON_Print(json_response_status));
+      cJSON *esp_bool = NULL;
 
+      if (esp_state == 0)
+        esp_bool = cJSON_CreateFalse();
+      else {
+        esp_bool = cJSON_CreateTrue();
+      }
+      cJSON_AddBoolToObject(json_response_default, "state", esp_bool);
       cJSON_AddStringToObject(json_response_default, "type", "energia");
-      cJSON_AddNumberToObject(json_response_default, "status", esp_state);
       cJSON_AddNumberToObject(json_response_default, "json_type", 2);
       cJSON_AddStringToObject(json_response_default, "mac", mac_address);
 
       mqtt_envia_mensagem(esp_topic, cJSON_Print(json_response_default));
-
     }
 #endif
 #ifdef CONFIG_BATERIA
