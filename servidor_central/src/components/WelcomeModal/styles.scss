@@ -1,0 +1,34 @@
+#welcome-modal {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+  > h2 {
+    font-size: 2.8rem;
+    color: #171717;
+  }
+
+  > p {
+    margin: 3rem 0;
+    color: #39393A;
+    font-size: 2rem;
+  }
+
+  > button {
+    border: 0;
+    background: transparent;
+    background-color: #3A3AE7;
+    color: #FFF;
+
+    font-size: 2.2rem;
+    padding: 1rem 2rem;
+    border-radius: 1rem;
+
+    transition: 0.2s;
+    cursor: pointer;
+
+    &:hover {
+      background-color: #2929b6;
+    }
+  }
+}
