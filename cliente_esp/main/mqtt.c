@@ -132,7 +132,6 @@ void mqtt_response_handler(char *data_from_host) {
       esp_restart();
     } else if (json_type->valueint == 12) {
       int esp_state = le_valor_nvs("esp_state", "", integer_type);
-      printf("----> %d\n", esp_state);
       esp_state = !esp_state;
       grava_value_nvs("esp_state", esp_state, "", integer_type);
     } else {

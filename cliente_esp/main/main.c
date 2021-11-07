@@ -117,24 +117,19 @@ void handle_server(void *params) {
 #ifdef CONFIG_ENERGIA
     while (true) {
       cJSON *json_response_default = cJSON_CreateObject();
-
+      esp_state = le_valor_nvs("esp_state", "", integer_type);
+      vTaskDelay(1000 / portTICK_PERIOD_MS);
       if (esp_state) {
         struct dht11_reading temp_hum = avarage_value(5);
         cJSON_AddNumberToObject(json_response_default, "temperature", temp_hum.temperature);
         cJSON_AddNumberToObject(json_response_default, "humidity", temp_hum.humidity);
+      } else {
+        vTaskDelay(9000 / portTICK_PERIOD_MS);
       }
 
-      esp_state = le_valor_nvs("esp_state", "", integer_type);
-      cJSON *esp_bool = NULL;
-
-      if (esp_state == 0)
-        esp_bool = cJSON_CreateFalse();
-      else {
-        esp_bool = cJSON_CreateTrue();
-      }
-      cJSON_AddBoolToObject(json_response_default, "state", esp_bool);
       cJSON_AddStringToObject(json_response_default, "type", "energia");
       cJSON_AddNumberToObject(json_response_default, "json_type", 2);
+      cJSON_AddNumberToObject(json_response_default, "state", esp_state);
       cJSON_AddStringToObject(json_response_default, "mac", mac_address);
 
       mqtt_envia_mensagem(esp_topic, cJSON_Print(json_response_default));
@@ -147,7 +142,9 @@ void handle_server(void *params) {
     rtc_gpio_pulldown_dis(BOTAO);
     esp_sleep_enable_ext0_wakeup(BOTAO, 0);
     gpio_set_level(LED, 1);
-    esp_state = !le_valor_nvs("esp_state", "", integer_type);
+    esp_state = le_valor_nvs("esp_state", "", integer_type);
+    esp_state = !esp_state;
+    vTaskDelay(500 / portTICK_PERIOD_MS);
     cJSON *json_response_status = cJSON_CreateObject();
 
     cJSON_AddNumberToObject(json_response_status, "status", esp_state);
@@ -157,12 +154,10 @@ void handle_server(void *params) {
 
     mqtt_envia_mensagem(esp_topic, cJSON_Print(json_response_status));
 
-    vTaskDelay(500 / portTICK_PERIOD_MS);
     grava_value_nvs("esp_state", esp_state, "", integer_type);
     gpio_set_level(LED, 0);
     printf("Ativando economia de energia\n");
     esp_deep_sleep_start();
-    mqtt_envia_mensagem(esp_topic, cJSON_Print(json_response_status));
 
 #endif
   }
@@ -196,7 +191,7 @@ void app_main(void) {
   wifi_start();
 
   filaDeInterrupcao = xQueueCreate(10, sizeof(int));
-  xTaskCreate(&handle_gpio, "TrataBotao", 2048, NULL, 1, NULL);
+  xTaskCreate(handle_gpio, "TrataBotao", 2048, NULL, 1, NULL);
 
   gpio_install_isr_service(0);
   gpio_isr_handler_add(BOTAO, gpio_isr_handler, (void *)BOTAO);

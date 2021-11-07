@@ -50,7 +50,7 @@ const DeviceCard = ({
         <h3>Saída:</h3>
         <p>
           {output} -{' '}
-          {state ? (
+          {state === 1 ? (
             <span className="state-on">ON</span>
           ) : (
             <span className="state-off">OFF</span>
