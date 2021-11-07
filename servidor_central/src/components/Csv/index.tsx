@@ -3,14 +3,14 @@ import { FiDownload } from 'react-icons/fi';
 
 import Button from '../Button';
 
-interface DataProps {
-  date: string;
-  device: string;
-  event: string;
+interface LogsProps {
+  date?: string;
+  device?: string;
+  event?: string;
 }
 
 interface CsvProps {
-  data: DataProps[];
+  data: LogsProps[];
 }
 
 const Csv = ({ data }: CsvProps) => {

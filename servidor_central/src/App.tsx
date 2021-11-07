@@ -12,7 +12,7 @@ import NewDeviceAdd from './components/NewDeviceAdd';
 import DeviceCard from './components/DeviceCard';
 import Csv from './components/Csv';
 import Alarm from './components/Alarm';
-
+import WelcomeModal from './components/WelcomeModal';
 import { mqttConnect, mqttSub, mqttPublish, options } from './utils/mqtt';
 
 interface DeviceProps {
@@ -28,12 +28,17 @@ interface DeviceProps {
   lastUpdate?: string;
 }
 
-const devicesGlobal = [];
+interface LogsProps {
+  date?: string;
+  device?: string;
+  event?: string;
+}
 
 function App() {
   const [client, setClient] = useState<mqtt.MqttClient>();
   const [connectStatus, setConnectStatus] = useState('');
   const [modalIsOpen, setModalIsOpen] = useState(false);
+  const [welcomeModalIsOpen, setWelcomeModalIsOpen] = useState(true);
   const [newDeviceFound, setNewDeviceFound] = useState(false);
   const [isAlarmDevice, setIsAlarmDevice] = useState(false);
   const [activeAlarm, setActiveAlarm] = useState(false);
@@ -41,8 +46,7 @@ function App() {
   const [deviceInfo, setDeviceInfo] = useState<DeviceProps>();
   const [devices, setDevices] = useState<DeviceProps[]>([]);
   const [newDeviceHost] = useState('fse2021/170139981/dispositivos/+');
-
-
+  const [logs, setLogs] = useState<LogsProps[]>([]);
 
   const broker = {
     host: 'broker.mqttdashboard.com',
@@ -52,12 +56,6 @@ function App() {
   const sub = {
     topic: '',
     qos: 2,
-  };
-
-  const context = {
-    topic: 'fse2021/170139981/dispositivos/946A7727FC11',
-    qos: 2,
-    payload: '',
   };
 
   const registerDevice = (mac: string, type: string) => {
@@ -77,6 +75,8 @@ function App() {
     device.type = deviceInfo?.type;
     device.state = 0;
     device.isAlarm = isAlarmDevice === true ? 1 : 0;
+    device.temperature = -1;
+    device.humidity = -1;
     device.lastUpdate = new Date().toLocaleString();
     devices.push(device);
     setDevices(devices);
@@ -95,6 +95,8 @@ function App() {
     mqttSub(sub, client!);
     setModalIsOpen(false);
     setNewDeviceFound(false);
+
+    addLogs(device, "register");
   };
 
   const removeDevice = (mac: string) => {
@@ -122,19 +124,15 @@ function App() {
       payload: JSON.stringify(data),
     };
     mqttPublish(context, client!);
+    addLogs(device, "remove");
   };
 
   const updatedDevice = (mac: string, type: string, payloadMessage: string) => {
     const res = JSON.parse(payloadMessage);
-    console.log("devices: ", devices);
 
     let device: DeviceProps = devices.find(
-      (item: DeviceProps) => item.mac == mac
+      (item: DeviceProps) => item.mac === mac
     )!;
-
-
-    console.log("-->", res);
-    console.log("device-->", device);
 
     if (device !== undefined || device >= 0) {
       if (device.type === 'energia') {
@@ -145,31 +143,20 @@ function App() {
       device.state = res.state;
       device.lastUpdate = new Date().toLocaleString();
 
-      // if (device.isAlarm && device.state && activeAlarm) {
-      //   setPlayingAlarm(true);
-      // } else {
-      //   setPlayingAlarm(false);
-      // }
-      console.log(device);
+      if (device.isAlarm && device.state && activeAlarm) {
+        setPlayingAlarm(true);
+      } else {
+        setPlayingAlarm(false);
+      }
 
-      // const oldDevice = [...devices];
-      // let indexDevice = devices?.findIndex((x) => x.mac === mac);
-      // // setDevices([]);
-      // // oldDevice![indexDevice!] = device;
-      // devices.splice(indexDevice, 1);
-      // devices.push(device);
-      // setDevices(devices);
       const oldDevice = devices;
       let indexDevice = devices?.findIndex((x) => x.mac === mac);
       setDevices([]);
       oldDevice![indexDevice!] = device;
       setDevices(oldDevice);
+      addLogs(device, "update");
     }
   };
-
-  useEffect(() => {
-    console.log("UE---> ", devices);
-  }, [devices])
 
   const toggleDevice = (mac: string) => {
     let device: DeviceProps = devices?.find(
@@ -188,7 +175,6 @@ function App() {
     };
     let oldDevice = devices;
     let indexDevice = devices?.findIndex((x) => x.mac === device.mac);
-    // setDevices([]);
     oldDevice![indexDevice!] = device;
     setDevices(oldDevice);
     mqttPublish(context, client!);
@@ -199,10 +185,8 @@ function App() {
     const messageReceived = (payload: any) => {
       const res = JSON.parse(payload.message);
       const { json_type, type, mac } = res;
-      console.log("----> ", res);
 
       let mac_device: string;
-      console.log(type);
 
       switch (json_type) {
         case 0:
@@ -236,7 +220,6 @@ function App() {
       }
     };
 
-
     if (client) {
       client.on('connect', () => {
         setConnectStatus('Connected');
@@ -253,10 +236,9 @@ function App() {
         messageReceived(payload);
       });
     }
-    // console.log(connectStatus);
   }, [client]);
 
-  useEffect(() => { }, [devices]);
+  useEffect(() => {}, [devices]);
 
   useEffect(() => {
     function init() {
@@ -268,15 +250,52 @@ function App() {
     init();
   }, [client]);
 
-  const mockData = [
-    { date: '04/11/2021 22:54:17', device: 'Ar-condicionado', event: 'ON' },
-    { date: '27/10/2021 03:14:54', device: 'Sensor de presença', event: 'ON' },
-    { date: '02/11/2021 19:31:15', device: 'Sensor de fumaça', event: 'OFF' },
-  ];
+  function addLogs(device: DeviceProps, event: string) {
+    const date = new Date().toLocaleString();
+    let state: string = '';
+
+    if (event === 'register') {
+      state = 'Cadastro de Dispositivo | MAC: ' + device.mac;
+    } else if (event === 'remove') {
+      state = 'Descadastro de Dispositivo | MAC: ' + device.mac;
+    } else {
+      if (
+        device.input?.search(/temperatura/i) ||
+        device.input?.search(/termometro/i)
+      ) {
+        state = 'T: ' + device.temperature + '; U: ' + device.humidity;
+      } else {
+        state = device.state === 0 ? 'OFF' : 'ON';
+      }
+    }
+
+    const data = {
+      date: date,
+      device: device.input,
+      event: state,
+    };
+
+    let newLogs = logs;
+
+    setLogs([]);
+    newLogs.push(data);
+    setLogs(newLogs);
+  }
 
   function closeModal() {
     setModalIsOpen(false);
     setNewDeviceFound(false);
+  }
+
+  function initConnection() {
+    mqttConnect(
+      `ws://${broker.host}:${broker.port}/mqtt`,
+      options,
+      setClient,
+      mqtt
+    );
+    setDevices([]);
+    setWelcomeModalIsOpen(false);
   }
 
   function addDevice() {
@@ -305,6 +324,10 @@ function App() {
           />
         )}
       </ModalApp>
+      <WelcomeModal
+        modalIsOpen={welcomeModalIsOpen}
+        onClick={() => initConnection()}
+      />
       <header>
         <h1>Central de Controle</h1>
 
@@ -324,24 +347,7 @@ function App() {
             />
             {playingAlarm && <Alarm />}
           </div>
-          <Csv data={mockData} />
-          <button
-            onClick={() => {
-              mqttConnect(
-                `ws://${broker.host}:${broker.port}/mqtt`,
-                options,
-                setClient,
-                mqtt
-              )
-              setDevices([]);
-            }
-            }
-          >
-            con
-          </button>
-
-          <button onClick={() => mqttPublish(context, client!)}>pub</button>
-          <button onClick={() => console.log(devices)}>devices</button>
+          <Csv data={logs} />
         </section>
       </header>
 
