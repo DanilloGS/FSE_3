@@ -1,6 +1,9 @@
 # FSE_3
 
-Este é o trabalho final da disciplina de Fundamentos de Sistemas Embarcados (2021/1). O trabalho final pode ser feito em dupla ou individualmente.
+## Alunos
+
+* Danillo Gonçalves de Souza - 17/0139981
+* Fellipe dos Santos Araujo - 18/0063723
 
 ## Objetivo 
 
