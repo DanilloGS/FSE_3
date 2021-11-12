@@ -5,7 +5,6 @@ RUN npm install -g npm@latest
 WORKDIR /app
 
 COPY package.json ./
-COPY yarn.lock ./
 
 RUN npm install
 
